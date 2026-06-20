@@ -33,7 +33,7 @@ class QLoRALinear(Linear4Bit):
         # TODO: Forward. Make sure to cast inputs to self.linear_dtype and the output back to x.dtype
         with torch.no_grad():
             weight = block_dequantize_4bit(self.weight_q4, self.weight_norm).view(self._shape)
-        base_out = torch.nn.functional.linear(x, weight, self.bias)
+            base_out = torch.nn.functional.linear(x, weight, self.bias)
         lora_out = self.lora_b(self.lora_a(x.to(torch.float32)))
         return base_out + lora_out
 

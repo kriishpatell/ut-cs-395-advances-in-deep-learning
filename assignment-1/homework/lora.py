@@ -38,9 +38,8 @@ class LoRALinear(HalfLinear):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # TODO: Forward. Make sure to cast inputs to self.linear_dtype and the output back to x.dtype
-        base_out = torch.nn.functional.linear(
-            x.to(torch.float16), self.weight, self.bias
-        ).to(x.dtype)
+        with torch.no_grad():
+            base_out = torch.nn.functional.linear(x, self.weight.to(x.dtype), self.bias.to(x.dtype))
         lora_out = self.lora_b(self.lora_a(x.to(torch.float32)))
         return base_out + lora_out
 
