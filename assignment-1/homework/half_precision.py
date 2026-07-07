@@ -25,11 +25,9 @@ class HalfLinear(torch.nn.Linear):
         # Hint: Use the .to method to cast a tensor to a different dtype (i.e. torch.float16 or x.dtype)
         # The input and output should be of x.dtype = torch.float32
         # TODO: Implement me
-        return torch.nn.functional.linear(
-            x.to(torch.float16),
-            self.weight,
-            self.bias,
-        ).to(x.dtype)
+        with torch.no_grad():
+            out = torch.nn.functional.linear(x, self.weight.to(x.dtype), self.bias.to(x.dtype))
+        return out.to(x.dtype)
 
 
 class HalfBigNet(torch.nn.Module):
