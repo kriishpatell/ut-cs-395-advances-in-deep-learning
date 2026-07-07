@@ -1,0 +1,16 @@
+[32m[DEBUG    00:00:000] [0m[32mLoading assignment[0m
+[32m[DEBUG    00:00:051] [0m[32mTraceback (most recent call last):[0m
+[32m[DEBUG    00:00:051] [0m[32m  File [35m"<frozen runpy>"[0m, line [35m198[0m, in [35m_run_module_as_main[0m[0m
+[32m[DEBUG    00:00:051] [0m[32m  File [35m"<frozen runpy>"[0m, line [35m88[0m, in [35m_run_code[0m[0m
+[32m[DEBUG    00:00:051] [0m[32m  File [35m"C:\Users\Krish\Documents\GitHub Repos\ut-cs-395-advances-in-deep-learning\assignment-2\grader\__main__.py"[0m, line [35m8[0m, in [35m<module>[0m[0m
+[32m[DEBUG    00:00:051] [0m[32m    [31mrun[0m[1;31m()[0m[0m
+[32m[DEBUG    00:00:051] [0m[32m    [31m~~~[0m[1;31m^^[0m[0m
+[32m[DEBUG    00:00:052] [0m[32m  File [35m"C:\Users\Krish\Documents\GitHub Repos\ut-cs-395-advances-in-deep-learning\assignment-2\grader\grader.py"[0m, line [35m349[0m, in [35mrun[0m[0m
+[32m[DEBUG    00:00:052] [0m[32m    assignment = load_assignment(logger, args.assignment)[0m
+[32m[DEBUG    00:00:052] [0m[32m  File [35m"C:\Users\Krish\Documents\GitHub Repos\ut-cs-395-advances-in-deep-learning\assignment-2\grader\grader.py"[0m, line [35m250[0m, in [35mload_assignment[0m[0m
+[32m[DEBUG    00:00:052] [0m[32m    [31mmodule_dir.joinpath("data").symlink_to[0m[1;31m(dataset_path)[0m[0m
+[32m[DEBUG    00:00:052] [0m[32m    [31m~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m[1;31m^^^^^^^^^^^^^^[0m[0m
+[32m[DEBUG    00:00:052] [0m[32m  File [35m"C:\Users\Krish\AppData\Local\Programs\Python\Python313\Lib\pathlib\_local.py"[0m, line [35m789[0m, in [35msymlink_to[0m[0m
+[32m[DEBUG    00:00:052] [0m[32m    [31mos.symlink[0m[1;31m(target, self, target_is_directory)[0m[0m
+[32m[DEBUG    00:00:052] [0m[32m    [31m~~~~~~~~~~[0m[1;31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m[0m
+[32m[DEBUG    00:00:052] [0m[32m[1;35mOSError[0m: [35m[WinError 1314] A required privilege is not held by the client: 'C:\\Users\\Krish\\Documents\\GitHub Repos\\ut-cs-395-advances-in-deep-learning\\assignment-2\\data' -> 'C:\\Users\\Krish\\AppData\\Local\\Temp\\tmpw1uzellq\\data'[0m[0m
