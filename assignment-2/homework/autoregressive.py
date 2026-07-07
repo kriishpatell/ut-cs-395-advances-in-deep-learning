@@ -55,10 +55,29 @@ class AutoregressiveModel(torch.nn.Module, Autoregressive):
 
     def __init__(self, d_latent: int = 128, n_tokens: int = 2**10):
         super().__init__()
-        raise NotImplementedError()
+        self.n_tokens = n_tokens
+        self.embedding = torch.nn.Embedding(n_tokens, d_latent)
+        self.start_token = torch.nn.Parameter(torch.zeros(d_latent))
+        layer = torch.nn.TransformerEncoderLayer(d_model=d_latent, nhead=8, batch_first=True)
+        self.transformer = torch.nn.TransformerEncoder(layer, num_layers=4)
+        self.output = torch.nn.Linear(d_latent, n_tokens)
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
-        raise NotImplementedError()
+        B, h, w = x.shape
+        emb = self.embedding(x.view(B, h * w))
+        seq = torch.cat([self.start_token[None, None].expand(B, 1, -1), emb[:, :-1]], dim=1)
+        mask = torch.nn.Transformer.generate_square_subsequent_mask(seq.size(1)).to(seq.device)
+        logits = self.output(self.transformer(seq, mask=mask, is_causal=True))
+        return logits.view(B, h, w, self.n_tokens), {}
 
     def generate(self, B: int = 1, h: int = 30, w: int = 20, device=None) -> torch.Tensor:  # noqa
-        raise NotImplementedError()
+        L = h * w
+        seq = torch.zeros(B, 0, dtype=torch.long, device=device)
+        cur = self.start_token[None, None].expand(B, 1, -1).to(device)
+        for _ in range(L):
+            mask = torch.nn.Transformer.generate_square_subsequent_mask(cur.size(1)).to(device)
+            logits = self.output(self.transformer(cur, mask=mask, is_causal=True)[:, -1])
+            nxt = torch.distributions.Categorical(logits=logits).sample()
+            seq = torch.cat([seq, nxt[:, None]], dim=1)
+            cur = torch.cat([cur, self.embedding(nxt)[:, None]], dim=1)
+        return seq.view(B, h, w)
