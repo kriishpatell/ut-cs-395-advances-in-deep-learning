@@ -117,7 +117,7 @@ class PatchAutoEncoder(torch.nn.Module, PatchAutoEncoderBase):
             self.net = torch.nn.Sequential(
                 torch.nn.Conv2d(latent_dim, latent_dim, 1), torch.nn.GELU(),
                 torch.nn.Conv2d(latent_dim, bottleneck, 1),
-        )
+            )
 
         def forward(self, x: torch.Tensor) -> torch.Tensor:
             return chw_to_hwc(self.net(hwc_to_chw(self.patchify(x))))
@@ -131,11 +131,12 @@ class PatchAutoEncoder(torch.nn.Module, PatchAutoEncoderBase):
             )
             self.unpatchify = UnpatchifyLinear(patch_size, latent_dim)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.unpatchify(chw_to_hwc(self.net(hwc_to_chw(x))))
+        def forward(self, x: torch.Tensor) -> torch.Tensor:
+            return self.unpatchify(chw_to_hwc(self.net(hwc_to_chw(x))))
 
     def __init__(self, patch_size: int = 25, latent_dim: int = 128, bottleneck: int = 128):
         super().__init__()
+        self.patch_size = patch_size
         self.encoder = self.PatchEncoder(patch_size, latent_dim, bottleneck)
         self.decoder = self.PatchDecoder(patch_size, latent_dim, bottleneck)
 
