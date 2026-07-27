@@ -95,7 +95,7 @@ class BaseLLM:
         # Preventing OOM
         # Depending on your GPU batched generation will use a lot of memory.
         # If you run out of memory, try to reduce the micro_batch_size.
-        micro_batch_size = 32
+        micro_batch_size = 4
         if len(prompts) > micro_batch_size:
             return [
                 r
@@ -105,7 +105,41 @@ class BaseLLM:
                 for r in self.batched_generate(prompts[idx : idx + micro_batch_size], num_return_sequences, temperature)
             ]
 
-        raise NotImplementedError()
+        self.tokenizer.padding_side = "left"
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+
+        inputs = self.tokenizer(prompts, padding=True, return_tensors="pt").to(self.device)
+
+        generate_kwargs = {
+            "max_new_tokens": 128,
+            "eos_token_id": self.tokenizer.eos_token_id,
+            "pad_token_id": self.tokenizer.eos_token_id,
+        }
+        if temperature > 0:
+            generate_kwargs["do_sample"] = True
+            generate_kwargs["temperature"] = temperature
+        else:
+            generate_kwargs["do_sample"] = False
+        if num_return_sequences is not None:
+            generate_kwargs["num_return_sequences"] = num_return_sequences
+
+        with torch.no_grad():
+            outputs = self.model.generate(
+                input_ids=inputs["input_ids"],
+                attention_mask=inputs["attention_mask"],
+                **generate_kwargs,
+            )
+
+        generated = outputs[:, inputs["input_ids"].shape[1] :]
+        decoded = self.tokenizer.batch_decode(generated, skip_special_tokens=True)
+
+        if num_return_sequences is not None:
+            return [
+                decoded[i * num_return_sequences : (i + 1) * num_return_sequences]
+                for i in range(len(prompts))
+            ]
+        return decoded
 
     def answer(self, *questions) -> list[float]:
         """

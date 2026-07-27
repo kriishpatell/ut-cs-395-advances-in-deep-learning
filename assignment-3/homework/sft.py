@@ -49,7 +49,12 @@ def format_example(prompt: str, answer: str) -> dict[str, str]:
     """
     Construct a question / answer pair. Consider rounding the answer to make it easier for the LLM.
     """
-    raise NotImplementedError()
+    # Round the answer to make it easier for the LLM to learn / reproduce.
+    rounded = round(float(answer), 3)
+    return {
+        "question": prompt,
+        "answer": f"<answer>{rounded}</answer>",
+    }
 
 
 class TokenizedDataset:
@@ -78,7 +83,53 @@ def train_model(
     output_dir: str,
     **kwargs,
 ):
-    raise NotImplementedError()
+    from peft import LoraConfig, get_peft_model
+    from transformers import Trainer, TrainingArguments
+
+    llm = BaseLLM()
+
+    # LoRA config: adapter on all linear layers, small rank to keep size < 20MB.
+    lora_config = LoraConfig(
+        r=8,
+        lora_alpha=32,
+        target_modules="all-linear",
+        bias="none",
+        task_type="CAUSAL_LM",
+    )
+    model = get_peft_model(llm.model, lora_config)
+
+    if llm.device == "cuda":
+        model.enable_input_require_grads()
+
+    model.print_trainable_parameters()
+
+    train_dataset = TokenizedDataset(llm.tokenizer, Dataset("train"), format_example)
+
+    training_args = TrainingArguments(
+        output_dir=output_dir,
+        logging_dir=output_dir,
+        report_to="tensorboard",
+        num_train_epochs=5,
+        per_device_train_batch_size=32,
+        learning_rate=2e-4,
+        gradient_checkpointing=True,
+        save_strategy="epoch",
+        save_total_limit=1,
+        logging_steps=10,
+    )
+
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=train_dataset,
+    )
+
+    trainer.train()
+
+    # Save the LoRA adapter into the output directory.
+    trainer.save_model(output_dir)
+    model.save_pretrained(output_dir)
+
     test_model(output_dir)
 
 
