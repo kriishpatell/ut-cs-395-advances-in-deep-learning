@@ -1,9 +1,10 @@
+import json
 from pathlib import Path
 
 import fire
 from matplotlib import pyplot as plt
 
-from .generate_qa import draw_detections, extract_frame_info
+from .generate_qa import draw_detections, extract_frame_info, extract_kart_objects, extract_track_info
 
 
 def generate_caption(info_path: str, view_index: int, img_width: int = 150, img_height: int = 100) -> list:
@@ -21,8 +22,37 @@ def generate_caption(info_path: str, view_index: int, img_width: int = 150, img_
 
     # 4. Relative position
     # {kart_name} is {position} of the ego car.
-
-    raise NotImplementedError("Not implemented")
+    karts = extract_kart_objects(info_path, view_index, img_width, img_height)
+    track_name = extract_track_info(info_path)
+ 
+    captions = []
+    if not karts:
+        return captions
+ 
+    # locate ego kart for the reference frame
+    ego = next((k for k in karts if k["is_center_kart"]), None)
+    if ego is None:
+        return captions
+    ego_x, ego_y = ego["center"]
+ 
+    # ego car caption
+    captions.append(f"{ego['kart_name']} is the ego car.")
+ 
+    # kart count caption
+    captions.append(f"There are {len(karts)} karts in the scene.")
+ 
+    captions.append(f"The track is {track_name}.")
+ 
+    # relative position caption for each non-ego kart
+    for kart in karts:
+        if kart["is_center_kart"]:
+            continue
+        kx, ky = kart["center"]
+        lr = "left" if kx < ego_x else "right"
+        fb = "front" if ky < ego_y else "back"
+        captions.append(f"{kart['kart_name']} is {fb} and {lr} of the ego car.")
+ 
+    return captions
 
 
 def check_caption(info_file: str, view_index: int):
@@ -46,6 +76,36 @@ def check_caption(info_file: str, view_index: int):
     plt.title(f"Frame {extract_frame_info(str(image_file))[0]}, View {view_index}")
     plt.show()
 
+def generate(output_dir: str = "data/train", img_width: int = 150, img_height: int = 100):
+    # build the full CLIP caption set from every train info file and view
+    data_root = Path(__file__).parent.parent
+    train_dir = data_root / "data" / "train"
+    out_dir = data_root / output_dir
+    out_dir.mkdir(parents=True, exist_ok=True)
+ 
+    info_files = sorted(train_dir.glob("*_info.json"))
+    print(f"Found {len(info_files)} info files in {train_dir}")
+ 
+    for info_file in info_files:
+        with open(info_file) as f:
+            info = json.load(f)
+        num_views = len(info["detections"])
+ 
+        entries = []
+        base_name = info_file.stem.replace("_info", "")
+        for view_index in range(num_views):
+            image_rel = f"train/{base_name}_{view_index:02d}_im.jpg"
+            if not (data_root / "data" / image_rel).exists():
+                continue
+            for caption in generate_caption(str(info_file), view_index, img_width, img_height):
+                entries.append({"image_file": image_rel, "caption": caption})
+ 
+        if entries:
+            out_path = out_dir / f"{base_name}_captions.json"
+            with open(out_path, "w") as f:
+                json.dump(entries, f, indent=2)
+ 
+    print(f"Wrote caption files to {out_dir}")
 
 """
 Usage Example: Visualize QA pairs for a specific file and view:

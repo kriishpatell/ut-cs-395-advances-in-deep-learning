@@ -1,8 +1,8 @@
 from pathlib import Path
-from typing import Any
-
+from typing import Any 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torchvision as tv
 from peft import LoraConfig, TaskType, get_peft_model
 from PIL import Image
@@ -101,14 +101,37 @@ class CLIP(nn.Module):
         super().__init__()
         self.vision_encoder = vision_encoder
         self.text_encoder = text_encoder
-        # TODO: implement the rest components
-        raise NotImplementedError("Not implemented")
+
+        # read backbone hidden sizes so projections match the encoders
+        vision_hidden = vision_encoder.config.hidden_size
+        text_hidden = text_encoder.config.hidden_size
+ 
+        # projection heads mapping each modality into the shared embedding space
+        self.visual_projection = nn.Linear(vision_hidden, proj_dim, bias=False)
+        self.text_projection = nn.Linear(text_hidden, proj_dim, bias=False)
+ 
+        # learnable log temperature (initialized to the given temperature)
+        self.logit_scale = nn.Parameter(torch.tensor(1.0 / temperature).log())
 
     def encode_image(self, image: torch.Tensor) -> torch.Tensor:
-        return self.vision_encoder(image)
+        outputs = self.vision_encoder(pixel_values=image)
+        hidden = outputs.last_hidden_state
+        pooled = hidden.mean(dim=1)
+        pooled = pooled.to(self.visual_projection.weight.dtype)
+        feat = self.visual_projection(pooled)
+        return F.normalize(feat, dim=-1)
 
     def encode_text(self, text: str) -> torch.Tensor:
-        return self.text_encoder(text)
+        outputs = self.text_encoder(input_ids=input_ids, attention_mask=attention_mask)
+        hidden = outputs.last_hidden_state
+        if attention_mask is not None:
+            mask = attention_mask.unsqueeze(-1).to(hidden.dtype)
+            pooled = (hidden * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1e-6)
+        else:
+            pooled = hidden.mean(dim=1)
+        pooled = pooled.to(self.text_projection.weight.dtype)
+        feat = self.text_projection(pooled)
+        return F.normalize(feat, dim=-1)
 
     def save_pretrained(self, save_directory: str, **kwargs):
         """Customize save method, save additional parameters"""
@@ -180,7 +203,9 @@ class CLIP(nn.Module):
         Returns:
             TODO: think about the what values should be returned
         """
-        raise NotImplementedError("Not implemented")
+        vision_feature = self.encode_image(pixel_values)
+        text_feature = self.encode_text(input_ids, attention_mask)
+        return vision_feature, text_feature, self.logit_scale.exp()
 
 
 def compute_clip_loss(
@@ -199,7 +224,14 @@ def compute_clip_loss(
     Returns:
         The loss for the CLIP model.
     """
-    raise NotImplementedError("Not implemented")
+    vision_feature, text_feature, logit_scale = outputs
+ 
+    logits = logit_scale * vision_feature @ text_feature.t()
+    targets = torch.arange(logits.shape[0], device=logits.device)
+ 
+    loss_i = F.cross_entropy(logits, targets)
+    loss_t = F.cross_entropy(logits.t(), targets)
+    return (loss_i + loss_t) / 2
 
 
 def get_target_modules_for_lora(model: nn.Module) -> list[str]:
