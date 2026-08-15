@@ -8,18 +8,27 @@ from .data import VQADataset, benchmark
 
 DEVICE = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
 
+if DEVICE == "cuda":
+    # Ada Lovelace GPUs (e.g. RTX 4080 Super) get a free speedup from TF32 matmuls,
+    # and cuDNN autotuning pays off since our image/batch shapes are fixed per run.
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
+    torch.backends.cudnn.benchmark = True
+
 
 class BaseVLM:
-    def __init__(self, checkpoint="HuggingFaceTB/SmolVLM-256M-Instruct"):
+    def __init__(self, checkpoint="HuggingFaceTB/SmolVLM-256M-Instruct", attn_implementation: str = "sdpa"):
         self.processor = AutoProcessor.from_pretrained(checkpoint)
 
         # important to set this to False, otherwise too many image tokens
         self.processor.image_processor.do_image_splitting = False
 
+        # "sdpa" uses PyTorch's fused scaled-dot-product-attention kernels (no extra deps,
+        # ships with torch>=2.0) instead of the much slower unfused "eager" path used before.
         self.model = AutoModelForVision2Seq.from_pretrained(
             checkpoint,
             torch_dtype=torch.bfloat16,
-            _attn_implementation="eager",
+            _attn_implementation=attn_implementation,
         ).to(DEVICE)
         self.device = DEVICE
 
