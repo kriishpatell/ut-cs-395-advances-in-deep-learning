@@ -13,13 +13,6 @@ from .data import VQADataset, benchmark
 
 DEVICE = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
 
-if DEVICE == "cuda":
-    # Ada Lovelace GPUs (e.g. RTX 4080 Super) get a free speedup from TF32 matmuls,
-    # and cuDNN autotuning pays off since our image/batch shapes are fixed per run.
-    torch.backends.cuda.matmul.allow_tf32 = True
-    torch.backends.cudnn.allow_tf32 = True
-    torch.backends.cudnn.benchmark = True
-
 processor = AutoProcessor.from_pretrained("HuggingFaceTB/SmolVLM-256M-Instruct")
 
 
@@ -119,8 +112,8 @@ def train(
     train_dataset_name: str = "train",
     output_dir: str = "vlm_sft",
     num_train_epochs: int = 0.05,  # use only 0.05 epoch for training
-    per_device_train_batch_size: int = 32,
-    gradient_accumulation_steps: int = 1,
+    per_device_train_batch_size: int = 8,
+    gradient_accumulation_steps: int = 4,
     learning_rate: float = 5e-4,
     lora_r: int = 8,
     lora_alpha: int = 32,
@@ -193,17 +186,12 @@ def train(
         gradient_accumulation_steps=gradient_accumulation_steps,
         learning_rate=learning_rate,
         bf16=True if DEVICE == "cuda" else False,
-        tf32=True if DEVICE == "cuda" else None,
-        optim="adamw_torch_fused" if DEVICE == "cuda" else "adamw_torch",
-        logging_steps=10,
+        logging_steps=1,
         save_strategy="steps",
         save_steps=50,
         save_total_limit=2,
-        save_only_model=True,  # skip optimizer/scheduler state, much faster + smaller checkpoints
         label_names=["labels"],
         dataloader_num_workers=num_workers,
-        dataloader_pin_memory=True,
-        dataloader_persistent_workers=num_workers > 0,
     )
 
     # Initialize trainer
