@@ -409,8 +409,7 @@ You probably need to add additional commands to Fire below.
 
 
 def main():
-    fire.Fire({"check": check_qa_pairs})
-
-
+    fire.Fire({"check": check_qa_pairs, "generate": generate})
+ 
 if __name__ == "__main__":
     main()

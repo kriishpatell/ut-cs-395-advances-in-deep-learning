@@ -116,7 +116,7 @@ You probably need to add additional commands to Fire below.
 
 
 def main():
-    fire.Fire({"check": check_caption})
+    fire.Fire({"check": check_caption, "generate": generate})
 
 
 if __name__ == "__main__":
