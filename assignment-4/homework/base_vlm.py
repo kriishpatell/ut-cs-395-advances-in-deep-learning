@@ -19,7 +19,7 @@ class BaseVLM:
         self.model = AutoModelForVision2Seq.from_pretrained(
             checkpoint,
             torch_dtype=torch.bfloat16,
-            _attn_implementation="eager",
+            _attn_implementation="sdpa",
         ).to(DEVICE)
         self.device = DEVICE
 
