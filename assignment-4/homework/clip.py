@@ -17,6 +17,13 @@ processor = AutoProcessor.from_pretrained("HuggingFaceTB/SmolVLM-256M-Instruct")
 
 device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
 
+if device == "cuda":
+    # Ada Lovelace (e.g. RTX 4080 Super) benefits from TF32 matmuls and cuDNN autotuning
+    # since batch/image shapes are fixed across steps.
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
+    torch.backends.cudnn.benchmark = True
+
 
 def load(model_name: str = "clip_model"):
     from pathlib import Path
@@ -121,7 +128,7 @@ class CLIP(nn.Module):
         feat = self.visual_projection(pooled)
         return F.normalize(feat, dim=-1)
 
-    def encode_text(self, text: str) -> torch.Tensor:
+    def encode_text(self, input_ids: torch.Tensor, attention_mask: torch.Tensor = None) -> torch.Tensor:
         outputs = self.text_encoder(input_ids=input_ids, attention_mask=attention_mask)
         hidden = outputs.last_hidden_state
         if attention_mask is not None:
@@ -250,6 +257,7 @@ def get_target_modules_for_lora(model: nn.Module) -> list[str]:
 
 def train(
     data_dir: Path | None = None,
+    train_dataset_name: str = "train",
     output_dir: str = "clip",
     num_train_epochs: float = 0.05,  # for debugging purpose, increase this once the dry run works
     per_device_train_batch_size: int = 1024,
@@ -291,7 +299,7 @@ def train(
     model.enable_input_require_grads()
 
     # load dataset
-    train_dataset = CaptionDataset("train", data_dir)
+    train_dataset = CaptionDataset(train_dataset_name, data_dir)
     train_dataset = CaptionDatasetForTraining(train_dataset, processor)
 
     training_args = TrainingArguments(
@@ -304,12 +312,17 @@ def train(
         gradient_checkpointing=True,
         learning_rate=learning_rate,
         bf16=True if device == "cuda" else False,
-        logging_steps=1,
+        tf32=True if device == "cuda" else None,
+        optim="adamw_torch_fused" if device == "cuda" else "adamw_torch",
+        logging_steps=10,
         save_strategy="steps",
         save_steps=50,
         save_total_limit=2,
+        save_only_model=True,  # skip optimizer/scheduler state, much faster + smaller checkpoints
         label_names=["labels"],
         dataloader_num_workers=num_workers,
+        dataloader_pin_memory=True,
+        dataloader_persistent_workers=num_workers > 0,
     )
 
     trainer = Trainer(
